@@ -1,25 +1,113 @@
 ---
 title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+author: "Shubhadeep Sarkar"
+date: "Sunday, September 14, 2014"
+output: html_document
+keep_md: true
 ---
 
 
+Load the required libraries
+```{r}
+library(ggplot2)
+library(plyr)
+```
+
+
 ## Loading and preprocessing the data
-
-
+The data is loaded into a data frame called *activity*
+```{r loaddata}
+activity <- read.csv("activity.csv", header=TRUE)
+clean_activity <- activity[which(activity$steps != "NA"), ]
+```
 
 ## What is mean total number of steps taken per day?
+### Make a histogram of the total number of steps taken each day
+```{r }
+steps_by_day <- ddply(clean_activity, .(date), summarise, steps=sum(steps))
+hist(steps_by_day$steps, main="Number of Steps", xlab="Total number of steps taken each day", col="light blue")
 
-
+```
+  
+  
+### Calculate and report the mean and median total number of steps taken per day
+Mean
+```{r}
+mean(steps_by_day$steps)
+```
+Median
+```{r}
+median(steps_by_day$steps)
+```
 
 ## What is the average daily activity pattern?
+### Make a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+Time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+```{r time_series}
+##remove NAs and calculate means to avoid NAs in mean
+average_by_interval <- ddply(clean_activity, .(interval), summarise, steps=mean(steps))
 
-
+## time series plot
+plot(average_by_interval$interval, average_by_interval$steps, type="l", 
+     col="blue",
+     xlab="5-minute interval", 
+     ylab="Average number of steps taken",
+     main="Average daily activity pattern")
+```
+    
+### Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+```{r}
+average_by_interval[average_by_interval$steps==max(average_by_interval$steps),]
+```
+Hence, the 5-minute interval containing the maximum number of steps is *835*
 
 ## Imputing missing values
+### Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
+```{r}
+# Total number of missing values in the dataset
+sum(is.na(activity$steps))
+```
+  
+### Devise a strategy for filling in all of the missing values in the dataset. The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc.
+As suggested, I will use the mean for that 5-minute interval in the missing values in the column steps
+```{r}
+# Fill NA's with average for that 5-min interval
+colnames(average_by_interval)[2] <- "intervalAvg"
+filled_activity <- arrange(join(activity, average_by_interval), interval)
+```
 
 
+### Create a new dataset that is equal to the original dataset but with the missing data filled in
+```{r}
+filled_activity$steps[is.na(filled_activity$steps)] <- filled_activity$intervalAvg[is.na(filled_activity$steps)]
+new_steps_by_day <- ddply(filled_activity, .(date), summarise, steps=sum(steps))
+```
+
+### Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+```{r}
+hist(new_steps_by_day$steps, main="Number of Steps", xlab="Total number of steps taken each day", col="yellow",)
+```
+New Mean
+```{r}
+# mean and median total number of steps taken per day
+mean(new_steps_by_day$steps)
+```
+Median
+```{r}
+median(new_steps_by_day$steps)
+```
+There are no differences between the old mean and median and the new mean and median in case my strategy is applied. 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+library(lattice)
+weekdays <- weekdays(as.Date(filled_activity$date))
+data_with_weekdays <- transform(filled_activity, day=weekdays)
+data_with_weekdays$wk <- ifelse(data_with_weekdays$day %in% c("Saturday", "Sunday"),"weekend", "weekday")
+average_by_interval_wk <- ddply(data_with_weekdays, .(interval, wk), summarise, steps=mean(steps))
+
+xyplot(steps ~ interval | wk, data = average_by_interval_wk, layout = c(1, 2), type="l")
+
+```
+
+
